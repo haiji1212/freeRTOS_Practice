@@ -140,18 +140,39 @@ int fputc( int ch, FILE *f );
 extern void vSetupTimerTest( void );
 
 /*-----------------------------------------------------------*/
+/* task1 function */
+void Task1Function(void * param){
+	while(1){
+		printf("1");
+	}
+}
+
+/* task2 function */
+void Task2Function(void * param){
+	while(1){
+		printf("2");
+	}
+}
+
 
 /*-----------------------------------------------------------*/
 
 int main( void )
 {
+	/* create handle for task */
+	TaskHandle_t xHandleTask1;
+	
 #ifdef DEBUG
-  debug();
+  	debug();
 #endif
 
 	prvSetupHardware();
 	
 	printf("Hello world!\r\n");
+
+	/* create my tasks */
+	xTaskCreate(Task1Function, "Task1", 100, NULL, 1, &xHandleTask1);
+	xTaskCreate(Task2Function, "Task2", 100, NULL, 1, NULL);
 
 	/* Start the scheduler. */
 	vTaskStartScheduler();
