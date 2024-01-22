@@ -140,9 +140,20 @@ int fputc( int ch, FILE *f );
 extern void vSetupTimerTest( void );
 
 /*-----------------------------------------------------------*/
+//用static不可以加入到逻分
+//static int task1flagrun = 0;
+//static int task2flagrun = 0;
+//static int task3flagrun = 0;
+int task1flagrun = 0;
+int task2flagrun = 0;
+int task3flagrun = 0;
+
 /* task1 function */
 void Task1Function(void * param){
 	while(1){
+		task1flagrun = 1;
+		task2flagrun = 0;
+		task3flagrun = 0;
 		printf("1");
 	}
 }
@@ -150,6 +161,9 @@ void Task1Function(void * param){
 /* task2 function */
 void Task2Function(void * param){
 	while(1){
+		task1flagrun = 0;
+		task2flagrun = 1;
+		task3flagrun = 0;
 		printf("2");
 	}
 }
@@ -157,11 +171,12 @@ void Task2Function(void * param){
 /* task3 function */
 void Task3Function(void * param){
 	while(1){
+		task1flagrun = 0;
+		task2flagrun = 0;
+		task3flagrun = 1;
 		printf("3");
 	}
 }
-
-
 
 /*-----------------------------------------------------------*/
 
@@ -192,7 +207,7 @@ int main( void )
 	printf("Hello world!\r\n");
 
 	/* create my tasks */
-	xTaskCreate(Task1Function, "Task1", 100, NULL, 1, &xHandleTask1);
+	xTaskCreate(Task1Function, "Task1", 100, NULL, 2, &xHandleTask1);
 	xTaskCreate(Task2Function, "Task2", 100, NULL, 1, NULL);
 	xTaskCreateStatic(Task3Function, "Task3", 100, NULL, 1, xTask3Stack, &xTask3TCB);
 
