@@ -189,6 +189,13 @@ void Task3Function(void * param){
 	}
 }
 
+void TaskGenericFunction(void * param){
+	int val = (int)param;
+	while(1){
+		printf("%d", val);
+	}
+}
+
 /*-----------------------------------------------------------*/
 
 StackType_t xTask3Stack[100];
@@ -219,6 +226,8 @@ int main( void )
 	xTaskCreate(Task1Function, "Task1", 100, NULL, 1, &xHandleTask1);
 	xTaskCreate(Task2Function, "Task2", 100, NULL, 1, NULL);
 	xTaskCreateStatic(Task3Function, "Task3", 100, NULL, 1, xTask3Stack, &xTask3TCB);
+	xTaskCreate(TaskGenericFunction, "Task4", 100, (void *)4, 1, NULL);
+	xTaskCreate(TaskGenericFunction, "Task5", 100, (void *)5, 1, NULL);
 
 	/* Start the scheduler. */
 	vTaskStartScheduler();
