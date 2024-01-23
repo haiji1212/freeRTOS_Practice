@@ -142,6 +142,7 @@ extern void vSetupTimerTest( void );
 /*-----------------------------------------------------------*/
 /* create handle for task */
 TaskHandle_t xHandleTask1;
+TaskHandle_t xHandleTask3;
 
 //用static不可以加入到逻分
 //static int task1flagrun = 0;
@@ -153,29 +154,33 @@ int task3flagrun = 0;
 
 /* task1 function */
 void Task1Function(void * param){
+	TickType_t tStart = xTaskGetTickCount();
+	TickType_t t = 0;
+	int flag = 0;
 	while(1){
+		t = xTaskGetTickCount();
 		task1flagrun = 1;
 		task2flagrun = 0;
 		task3flagrun = 0;
 		printf("1");
+		if(!flag && (t > tStart + 10)){
+			vTaskSuspend(xHandleTask3);
+			flag = 1;
+		}
+		if(t > tStart + 20){
+			vTaskResume(xHandleTask3);
+		}
 	}
 }
 
 /* task2 function */
 void Task2Function(void * param){
-	int i = 0;
 	while(1){
 		task1flagrun = 0;
 		task2flagrun = 1;
 		task3flagrun = 0;
 		printf("2");
-		if(i++ == 100){	//delete task1
-			vTaskDelete(xHandleTask1);
-		}
-		if(i == 200){	//delete task2
-			vTaskDelete(NULL);
-		}
-
+		vTaskDelay(10);
 	}
 }
 
@@ -186,13 +191,6 @@ void Task3Function(void * param){
 		task2flagrun = 0;
 		task3flagrun = 1;
 		printf("3");
-	}
-}
-
-void TaskGenericFunction(void * param){
-	int val = (int)param;
-	while(1){
-		printf("%d", val);
 	}
 }
 
@@ -225,9 +223,7 @@ int main( void )
 	/* create my tasks */
 	xTaskCreate(Task1Function, "Task1", 100, NULL, 1, &xHandleTask1);
 	xTaskCreate(Task2Function, "Task2", 100, NULL, 1, NULL);
-	xTaskCreateStatic(Task3Function, "Task3", 100, NULL, 1, xTask3Stack, &xTask3TCB);
-	xTaskCreate(TaskGenericFunction, "Task4", 100, (void *)4, 1, NULL);
-	xTaskCreate(TaskGenericFunction, "Task5", 100, (void *)5, 1, NULL);
+	xHandleTask3 = xTaskCreateStatic(Task3Function, "Task3", 100, NULL, 1, xTask3Stack, &xTask3TCB);
 
 	/* Start the scheduler. */
 	vTaskStartScheduler();
