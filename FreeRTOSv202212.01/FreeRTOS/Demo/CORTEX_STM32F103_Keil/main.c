@@ -122,7 +122,6 @@ information. */
 #define mainCOM_TEST_LED			( 3 )
 
 /*-----------------------------------------------------------*/
-
 /*
  * Configure the clocks, GPIO and other peripherals as required by the demo.
  */
@@ -139,40 +138,26 @@ int fputc( int ch, FILE *f );
  */
 extern void vSetupTimerTest( void );
 
+void Task2Function(void * param);
 /*-----------------------------------------------------------*/
-/* create handle for task */
-TaskHandle_t xHandleTask1;
-TaskHandle_t xHandleTask3;
-
-//用static不可以加入到逻分
-//static int task1flagrun = 0;
-//static int task2flagrun = 0;
-//static int task3flagrun = 0;
 int task1flagrun = 0;
 int task2flagrun = 0;
-int task3flagrun = 0;
-
-static int rands[] = {3, 56, 23, 5, 99}; 
+int taskIdleflagrun = 0;
 
 /* task1 function */
 void Task1Function(void * param){
-	TickType_t tStart = xTaskGetTickCount();
-	int i = 0;
-	int j = 0;
+	TaskHandle_t xHandleTask2;	
+	BaseType_t xReturn;
 	while(1){
 		task1flagrun = 1;
 		task2flagrun = 0;
-		task3flagrun = 0;
-		for(i = 0; i < rands[j]; i ++)
-			printf("1");	
-		j ++;
-		if(j == 5)
-			j = 0;
-#if 0
-		vTaskDelay(10);
-#else
-		vTaskDelayUntil(&tStart, 10);
-#endif
+		taskIdleflagrun = 0;
+		printf("1");	
+		xReturn = xTaskCreate(Task2Function, "Task2", 1024, NULL, 2, &xHandleTask2);
+		if(xReturn != pdPASS){
+			printf("xTaskCreate err\r\n");
+		}
+		//vTaskDelete(xHandleTask2);
 	}
 }
 
@@ -181,39 +166,26 @@ void Task2Function(void * param){
 	while(1){
 		task1flagrun = 0;
 		task2flagrun = 1;
-		task3flagrun = 0;
+		taskIdleflagrun = 0;
 		printf("2");
+		//vTaskDelay(2);
+		vTaskDelete(NULL);
 	}
 }
 
-/* task3 function */
-void Task3Function(void * param){
-	while(1){
+void vApplicationIdleHook( void ){
 		task1flagrun = 0;
 		task2flagrun = 0;
-		task3flagrun = 1;
-		printf("3");
-	}
+		taskIdleflagrun = 1;	
+		printf("0");
 }
+
 
 /*-----------------------------------------------------------*/
 
-StackType_t xTask3Stack[100];
-StaticTask_t xTask3TCB;
-
-StackType_t xIdleTaskStack[100];
-StaticTask_t xIdleTaskTCB;
-
-void vApplicationGetIdleTaskMemory(StaticTask_t * * ppxIdleTaskTCBBuffer, StackType_t * * ppxIdleTaskStackBuffer, uint32_t * pulIdleTaskStackSize){
-	*ppxIdleTaskTCBBuffer = &xIdleTaskTCB;
-	*ppxIdleTaskStackBuffer = xIdleTaskStack;
-	*pulIdleTaskStackSize = 100;
-}
-
-
 int main( void )
 {
-	
+	TaskHandle_t xHandleTask1;	
 #ifdef DEBUG
   	debug();
 #endif
@@ -223,9 +195,7 @@ int main( void )
 	printf("Hello world!\r\n");
 
 	/* create my tasks */
-	xTaskCreate(Task1Function, "Task1", 100, NULL, 2, &xHandleTask1);
-	xTaskCreate(Task2Function, "Task2", 100, NULL, 1, NULL);
-	xHandleTask3 = xTaskCreateStatic(Task3Function, "Task3", 100, NULL, 1, xTask3Stack, &xTask3TCB);
+	xTaskCreate(Task1Function, "Task1", 100, NULL, 0, &xHandleTask1);
 
 	/* Start the scheduler. */
 	vTaskStartScheduler();
