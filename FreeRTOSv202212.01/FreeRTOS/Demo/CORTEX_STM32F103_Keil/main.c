@@ -140,44 +140,63 @@ extern void vSetupTimerTest( void );
 
 void Task2Function(void * param);
 /*-----------------------------------------------------------*/
-int task1flagrun = 0;
-int task2flagrun = 0;
-int taskIdleflagrun = 0;
+volatile int flagIdleTaskrun = 0;  // 空闲任务运行时flagIdleTaskrun=1
+volatile int flagTask1run = 0;     // 任务1运行时flagTask1run=1
+volatile int flagTask2run = 0;     // 任务2运行时flagTask2run=1
+volatile int flagTask3run = 0;     // 任务3运行时flagTask3run=1
 
-/* task1 function */
-void Task1Function(void * param){
-	TaskHandle_t xHandleTask2;	
-	BaseType_t xReturn;
-	while(1){
-		task1flagrun = 1;
-		task2flagrun = 0;
-		taskIdleflagrun = 0;
-		printf("1");	
-		xReturn = xTaskCreate(Task2Function, "Task2", 1024, NULL, 2, &xHandleTask2);
-		if(xReturn != pdPASS){
-			printf("xTaskCreate err\r\n");
-		}
-		//vTaskDelete(xHandleTask2);
+
+void vTask1( void *pvParameters )
+{
+	for( ;; )
+	{
+		flagIdleTaskrun = 0;
+		flagTask1run = 1;
+		flagTask2run = 0;
+		flagTask3run = 0;
+		
+		printf("T1\r\n");				
 	}
 }
 
-/* task2 function */
-void Task2Function(void * param){
-	while(1){
-		task1flagrun = 0;
-		task2flagrun = 1;
-		taskIdleflagrun = 0;
-		printf("2");
-		//vTaskDelay(2);
-		vTaskDelete(NULL);
+void vTask2( void *pvParameters )
+{	
+	for( ;; )
+	{
+		flagIdleTaskrun = 0;
+		flagTask1run = 0;
+		flagTask2run = 1;
+		flagTask3run = 0;
+		
+		printf("T2\r\n");				
 	}
 }
 
-void vApplicationIdleHook( void ){
-		task1flagrun = 0;
-		task2flagrun = 0;
-		taskIdleflagrun = 1;	
-		printf("0");
+void vTask3( void *pvParameters )
+{	
+	const TickType_t xDelay5ms = pdMS_TO_TICKS( 5UL );		
+	
+	for( ;; )
+	{
+		flagIdleTaskrun = 0;
+		flagTask1run = 0;
+		flagTask2run = 0;
+		flagTask3run = 1;
+		
+		printf("T3\r\n");				
+
+		vTaskDelay( xDelay5ms );
+	}
+}
+
+void vApplicationIdleHook(void)
+{
+	flagIdleTaskrun = 1;
+	flagTask1run = 0;
+	flagTask2run = 0;
+	flagTask3run = 0;	
+
+	//printf("Id\r\n");				
 }
 
 
@@ -185,7 +204,6 @@ void vApplicationIdleHook( void ){
 
 int main( void )
 {
-	TaskHandle_t xHandleTask1;	
 #ifdef DEBUG
   	debug();
 #endif
@@ -195,7 +213,9 @@ int main( void )
 	printf("Hello world!\r\n");
 
 	/* create my tasks */
-	xTaskCreate(Task1Function, "Task1", 100, NULL, 0, &xHandleTask1);
+	xTaskCreate(vTask1, "Task1", 100, NULL, 0, NULL);
+	xTaskCreate(vTask2, "Task2", 100, NULL, 0, NULL);
+	xTaskCreate(vTask3, "Task3", 100, NULL, 2, NULL);
 
 	/* Start the scheduler. */
 	vTaskStartScheduler();

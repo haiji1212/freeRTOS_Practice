@@ -50,7 +50,7 @@
 #define configMAX_TASK_NAME_LEN		( 16 )
 #define configUSE_TRACE_FACILITY	0
 #define configUSE_16_BIT_TICKS		0
-#define configIDLE_SHOULD_YIELD		1
+#define configIDLE_SHOULD_YIELD		0//1
 
 //#define configSUPPORT_STATIC_ALLOCATION 1
 
