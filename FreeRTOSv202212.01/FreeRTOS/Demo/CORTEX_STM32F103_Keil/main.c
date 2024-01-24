@@ -139,72 +139,49 @@ int fputc( int ch, FILE *f );
 extern void vSetupTimerTest( void );
 
 /*-----------------------------------------------------------*/
-static int sum = 0;
-volatile int flagCalcEnd = 0;	//static 
+
+static volatile int flagCalcEnd = 0;
 static volatile int flagUARTused = 0;
-static QueueHandle_t xQueueCalHandle;
-static QueueHandle_t xQueueUARTcHandle;
-
-int InitUARTLock(void)
-{	
-	int val;
-	xQueueUARTcHandle = xQueueCreate(1, sizeof(int));
-	if (xQueueUARTcHandle == NULL)
-	{
-		printf("can not create queue\r\n");
-		return -1;
-	}
-	xQueueSend(xQueueUARTcHandle, &val, portMAX_DELAY);
-	return 0;
-}
-
-void GetUARTLock(void)
-{	
-	int val;
-	xQueueReceive(xQueueUARTcHandle, &val, portMAX_DELAY);
-}
-
-void PutUARTLock(void)
-{	
-	int val;
-	xQueueSend(xQueueUARTcHandle, &val, portMAX_DELAY);
-}
-
+static QueueHandle_t xQueueHandle1;
+static QueueHandle_t xQueueHandle2;
+static QueueSetHandle_t xQueueSet;
 
 void Task1Function(void * param)
 {
-	volatile int i = 0;
-	while(1){
-		for(i = 0; i < 10000000; i ++)
-			sum++;
-		//flagCalcEnd = 1;
-		//vTaskDelete(NULL);
-		xQueueSend(xQueueCalHandle, &sum, portMAX_DELAY);	//write to queue
-		sum = 1;
-	}
-}
-
-void Task2Function( void *param )
-{	
-	int val;
-	while(1){
-		//if(flagCalcEnd == 1)
-		flagCalcEnd = 0;
-		xQueueReceive(xQueueCalHandle, &val, portMAX_DELAY);	//read
-		flagCalcEnd = 1;
-			printf("val = %d\r\n", val);
-	}
-}
-
-void TaskGenericFunction(void * param)
-{
+	int i = 0;
 	while (1)
 	{
-		GetUARTLock();
-		printf("%s\r\n", (char *)param);
-		   // task 3 is waiting
-		PutUARTLock(); /* task 3 ==> ready, task 4 is running  */
-		vTaskDelay(1);
+		xQueueSend(xQueueHandle1, &i, portMAX_DELAY);
+		i++;
+		vTaskDelay(10);
+	}
+}
+
+void Task2Function(void * param)
+{
+	int i = -1;
+	while (1)
+	{
+		xQueueSend(xQueueHandle2, &i, portMAX_DELAY);
+		i--;
+		vTaskDelay(20);
+	}
+}
+
+void Task3Function(void * param)
+{
+	QueueSetMemberHandle_t handle;
+	int i;
+	while (1)
+	{
+		/* 1. read queue set: which queue has data */
+		handle = xQueueSelectFromSet(xQueueSet, portMAX_DELAY);
+
+		/* 2. read queue */
+		xQueueReceive(handle, &i, 0);
+
+		/* 3. print */
+		printf("get data : %d\r\n", i);
 	}
 }
 
@@ -222,18 +199,31 @@ int main( void )
 	
 	printf("Hello world!\r\n");
 
-	/* create queue*/
-	xQueueCalHandle = xQueueCreate(2, sizeof(int));
-	if(xQueueCalHandle == NULL)
-		printf("xQueueCalHandle Create err\r\n");
-	InitUARTLock();
-	/* create my tasks */
-	//Task1和Task2实现同步
+	/* 1. 创建2个queue */
+
+	xQueueHandle1 = xQueueCreate(2, sizeof(int));
+	if (xQueueHandle1 == NULL)
+	{
+		printf("can not create queue\r\n");
+	}
+
+	xQueueHandle2 = xQueueCreate(2, sizeof(int));
+	if (xQueueHandle2 == NULL)
+	{
+		printf("can not create queue\r\n");
+	}
+
+	/* 2. 创建queue set */
+	xQueueSet = xQueueCreateSet(3);
+
+	/* 3. 把2个queue添加进queue set */
+	xQueueAddToSet(xQueueHandle1, xQueueSet);
+	xQueueAddToSet(xQueueHandle2, xQueueSet);
+
+	/* 4. 创建3个任务 */
 	xTaskCreate(Task1Function, "Task1", 100, NULL, 1, &xHandleTask1);
 	xTaskCreate(Task2Function, "Task2", 100, NULL, 1, NULL);
-	//Task3和Task4实现互斥
-	xTaskCreate(TaskGenericFunction, "Task3", 100, "Task 3 is running", 1, NULL);
-	xTaskCreate(TaskGenericFunction, "Task4", 100, "Task 4 is running", 1, NULL);
+	xTaskCreate(Task3Function, "Task3", 100, NULL, 1, NULL);
 
 	/* Start the scheduler. */
 	vTaskStartScheduler();
