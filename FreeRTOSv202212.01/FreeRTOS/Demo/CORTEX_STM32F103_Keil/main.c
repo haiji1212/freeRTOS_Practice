@@ -138,65 +138,74 @@ int fputc( int ch, FILE *f );
  */
 extern void vSetupTimerTest( void );
 
-void Task2Function(void * param);
 /*-----------------------------------------------------------*/
-volatile int flagIdleTaskrun = 0;  // 空闲任务运行时flagIdleTaskrun=1
-volatile int flagTask1run = 0;     // 任务1运行时flagTask1run=1
-volatile int flagTask2run = 0;     // 任务2运行时flagTask2run=1
-volatile int flagTask3run = 0;     // 任务3运行时flagTask3run=1
+static int sum = 0;
+volatile int flagCalcEnd = 0;	//static 
+static volatile int flagUARTused = 0;
+static QueueHandle_t xQueueCalHandle;
+static QueueHandle_t xQueueUARTcHandle;
 
-
-void vTask1( void *pvParameters )
-{
-	for( ;; )
-	{
-		flagIdleTaskrun = 0;
-		flagTask1run = 1;
-		flagTask2run = 0;
-		flagTask3run = 0;
-		
-		printf("T1\r\n");				
-	}
-}
-
-void vTask2( void *pvParameters )
+int InitUARTLock(void)
 {	
-	for( ;; )
+	int val;
+	xQueueUARTcHandle = xQueueCreate(1, sizeof(int));
+	if (xQueueUARTcHandle == NULL)
 	{
-		flagIdleTaskrun = 0;
-		flagTask1run = 0;
-		flagTask2run = 1;
-		flagTask3run = 0;
-		
-		printf("T2\r\n");				
+		printf("can not create queue\r\n");
+		return -1;
 	}
+	xQueueSend(xQueueUARTcHandle, &val, portMAX_DELAY);
+	return 0;
 }
 
-void vTask3( void *pvParameters )
+void GetUARTLock(void)
 {	
-	const TickType_t xDelay5ms = pdMS_TO_TICKS( 5UL );		
-	
-	for( ;; )
-	{
-		flagIdleTaskrun = 0;
-		flagTask1run = 0;
-		flagTask2run = 0;
-		flagTask3run = 1;
-		
-		printf("T3\r\n");				
+	int val;
+	xQueueReceive(xQueueUARTcHandle, &val, portMAX_DELAY);
+}
 
-		vTaskDelay( xDelay5ms );
+void PutUARTLock(void)
+{	
+	int val;
+	xQueueSend(xQueueUARTcHandle, &val, portMAX_DELAY);
+}
+
+
+void Task1Function(void * param)
+{
+	volatile int i = 0;
+	while(1){
+		for(i = 0; i < 10000000; i ++)
+			sum++;
+		//flagCalcEnd = 1;
+		//vTaskDelete(NULL);
+		xQueueSend(xQueueCalHandle, &sum, portMAX_DELAY);	//write to queue
+		sum = 1;
 	}
 }
 
-void vApplicationIdleHook(void)
-{
-	flagIdleTaskrun = 1;
-	flagTask1run = 0;
-	flagTask2run = 0;
-	flagTask3run = 0;	
+void Task2Function( void *param )
+{	
+	int val;
+	while(1){
+		//if(flagCalcEnd == 1)
+		flagCalcEnd = 0;
+		xQueueReceive(xQueueCalHandle, &val, portMAX_DELAY);	//read
+		flagCalcEnd = 1;
+			printf("val = %d\r\n", val);
+	}
+}
 
-	//printf("Id\r\n");				
+void TaskGenericFunction(void * param)
+{
+	while (1)
+	{
+		GetUARTLock();
+		printf("%s\r\n", (char *)param);
+		   // task 3 is waiting
+		PutUARTLock(); /* task 3 ==> ready, task 4 is running  */
+		vTaskDelay(1);
+	}
 }
 
 
@@ -204,6 +213,7 @@ void vApplicationIdleHook(void)
 
 int main( void )
 {
+	TaskHandle_t xHandleTask1;
 #ifdef DEBUG
   	debug();
 #endif
@@ -212,10 +222,18 @@ int main( void )
 	
 	printf("Hello world!\r\n");
 
+	/* create queue*/
+	xQueueCalHandle = xQueueCreate(2, sizeof(int));
+	if(xQueueCalHandle == NULL)
+		printf("xQueueCalHandle Create err\r\n");
+	InitUARTLock();
 	/* create my tasks */
-	xTaskCreate(vTask1, "Task1", 100, NULL, 0, NULL);
-	xTaskCreate(vTask2, "Task2", 100, NULL, 0, NULL);
-	xTaskCreate(vTask3, "Task3", 100, NULL, 2, NULL);
+	//Task1和Task2实现同步
+	xTaskCreate(Task1Function, "Task1", 100, NULL, 1, &xHandleTask1);
+	xTaskCreate(Task2Function, "Task2", 100, NULL, 1, NULL);
+	//Task3和Task4实现互斥
+	xTaskCreate(TaskGenericFunction, "Task3", 100, "Task 3 is running", 1, NULL);
+	xTaskCreate(TaskGenericFunction, "Task4", 100, "Task 4 is running", 1, NULL);
 
 	/* Start the scheduler. */
 	vTaskStartScheduler();

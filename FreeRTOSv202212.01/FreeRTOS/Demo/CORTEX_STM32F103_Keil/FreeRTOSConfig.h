@@ -39,8 +39,8 @@
  * See http://www.freertos.org/a00110.html
  *----------------------------------------------------------*/
 
-#define configUSE_PREEMPTION		1
-#define configUSE_IDLE_HOOK			1//0
+#define configUSE_PREEMPTION		1//默认1
+#define configUSE_IDLE_HOOK			0//默认0
 #define configUSE_TICK_HOOK			0
 #define configCPU_CLOCK_HZ			( ( unsigned long ) 72000000 )
 #define configTICK_RATE_HZ			( ( TickType_t ) 1000 )
@@ -50,7 +50,7 @@
 #define configMAX_TASK_NAME_LEN		( 16 )
 #define configUSE_TRACE_FACILITY	0
 #define configUSE_16_BIT_TICKS		0
-#define configIDLE_SHOULD_YIELD		0//1
+#define configIDLE_SHOULD_YIELD		1//默认1
 
 //#define configSUPPORT_STATIC_ALLOCATION 1
 
