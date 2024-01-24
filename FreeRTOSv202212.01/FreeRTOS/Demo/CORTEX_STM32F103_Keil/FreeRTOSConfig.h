@@ -52,6 +52,7 @@
 #define configUSE_16_BIT_TICKS		0
 #define configIDLE_SHOULD_YIELD		1//默认1
 
+
 //#define configSUPPORT_STATIC_ALLOCATION 1
 
 

@@ -63,6 +63,7 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
+#include "semphr.h"
 
 /* Library includes. */
 #include "stm32f10x_it.h"
@@ -140,48 +141,46 @@ extern void vSetupTimerTest( void );
 
 /*-----------------------------------------------------------*/
 
+static int sum = 0;
 static volatile int flagCalcEnd = 0;
 static volatile int flagUARTused = 0;
-static QueueHandle_t xQueueHandle1;
-static QueueHandle_t xQueueHandle2;
-static QueueSetHandle_t xQueueSet;
+
+static SemaphoreHandle_t xSemCalc;
+static SemaphoreHandle_t xSemUART;
 
 void Task1Function(void * param)
 {
-	int i = 0;
+	volatile int i = 0;
 	while (1)
 	{
-		xQueueSend(xQueueHandle1, &i, portMAX_DELAY);
-		i++;
-		vTaskDelay(10);
+		for (i = 0; i < 10000000; i++)
+			sum++;
+		//printf("1");
+		xSemaphoreGive(xSemCalc);
+		vTaskDelete(NULL);
 	}
 }
 
 void Task2Function(void * param)
 {
-	int i = -1;
 	while (1)
 	{
-		xQueueSend(xQueueHandle2, &i, portMAX_DELAY);
-		i--;
-		vTaskDelay(20);
+		//if (flagCalcEnd)
+		flagCalcEnd = 0;
+		xSemaphoreTake(xSemCalc, portMAX_DELAY);
+		flagCalcEnd = 1;
+		printf("sum = %d\r\n", sum);
 	}
 }
 
-void Task3Function(void * param)
+void TaskGenericFunction(void * param)
 {
-	QueueSetMemberHandle_t handle;
-	int i;
 	while (1)
 	{
-		/* 1. read queue set: which queue has data */
-		handle = xQueueSelectFromSet(xQueueSet, portMAX_DELAY);
-
-		/* 2. read queue */
-		xQueueReceive(handle, &i, 0);
-
-		/* 3. print */
-		printf("get data : %d\r\n", i);
+		xSemaphoreTake(xSemUART, portMAX_DELAY);
+		printf("%s\r\n", (char *)param);
+		xSemaphoreGive(xSemUART);
+		vTaskDelay(1);
 	}
 }
 
@@ -199,31 +198,15 @@ int main( void )
 	
 	printf("Hello world!\r\n");
 
-	/* 1. 创建2个queue */
+	xSemCalc = xSemaphoreCreateCounting(10, 0);
+	xSemUART = xSemaphoreCreateBinary();
+	xSemaphoreGive(xSemUART);
 
-	xQueueHandle1 = xQueueCreate(2, sizeof(int));
-	if (xQueueHandle1 == NULL)
-	{
-		printf("can not create queue\r\n");
-	}
-
-	xQueueHandle2 = xQueueCreate(2, sizeof(int));
-	if (xQueueHandle2 == NULL)
-	{
-		printf("can not create queue\r\n");
-	}
-
-	/* 2. 创建queue set */
-	xQueueSet = xQueueCreateSet(3);
-
-	/* 3. 把2个queue添加进queue set */
-	xQueueAddToSet(xQueueHandle1, xQueueSet);
-	xQueueAddToSet(xQueueHandle2, xQueueSet);
-
-	/* 4. 创建3个任务 */
 	xTaskCreate(Task1Function, "Task1", 100, NULL, 1, &xHandleTask1);
 	xTaskCreate(Task2Function, "Task2", 100, NULL, 1, NULL);
-	xTaskCreate(Task3Function, "Task3", 100, NULL, 1, NULL);
+
+	xTaskCreate(TaskGenericFunction, "Task3", 100, "Task 3 is running", 1, NULL);
+	xTaskCreate(TaskGenericFunction, "Task4", 100, "Task 4 is running", 1, NULL);
 
 	/* Start the scheduler. */
 	vTaskStartScheduler();
