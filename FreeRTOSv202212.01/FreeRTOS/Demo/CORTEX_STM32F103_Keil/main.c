@@ -157,8 +157,9 @@ int main( void )
 {
 	prvSetupHardware();
 	
-    xLock = xSemaphoreCreateBinary( );
-	xSemaphoreGive(xLock);
+   //xLock = xSemaphoreCreateBinary( );
+   //xSemaphoreGive(xLock);
+	xLock = xSemaphoreCreateMutex( );
 
 	if( xLock != NULL )
 	{
