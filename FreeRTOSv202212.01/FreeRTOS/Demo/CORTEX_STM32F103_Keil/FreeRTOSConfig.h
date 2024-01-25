@@ -54,6 +54,9 @@
 
 
 //#define configSUPPORT_STATIC_ALLOCATION 1
+#define configUSE_MUTEXES	1
+#define configUSE_COUNTING_SEMAPHORES 1
+
 
 
 /* Set the following definitions to 1 to include the API function, or zero

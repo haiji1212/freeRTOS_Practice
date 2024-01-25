@@ -199,8 +199,10 @@ int main( void )
 	printf("Hello world!\r\n");
 
 	xSemCalc = xSemaphoreCreateCounting(10, 0);
-	xSemUART = xSemaphoreCreateBinary();
-	xSemaphoreGive(xSemUART);
+	//xSemUART = xSemaphoreCreateBinary();
+	//xSemaphoreGive(xSemUART);
+	
+	xSemUART = xSemaphoreCreateMutex();
 
 	xTaskCreate(Task1Function, "Task1", 100, NULL, 1, &xHandleTask1);
 	xTaskCreate(Task2Function, "Task2", 100, NULL, 1, NULL);
