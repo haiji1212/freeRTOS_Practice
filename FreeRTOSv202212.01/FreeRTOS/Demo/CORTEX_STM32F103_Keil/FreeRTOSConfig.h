@@ -51,13 +51,16 @@
 #define configUSE_TRACE_FACILITY	0
 #define configUSE_16_BIT_TICKS		0
 #define configIDLE_SHOULD_YIELD		1//默认1
+#define configUSE_TIME_SLICING      1
 
 
 //#define configSUPPORT_STATIC_ALLOCATION 1
 #define configUSE_MUTEXES	1
 #define configUSE_COUNTING_SEMAPHORES 1
 
-
+/* Co-routine definitions. */
+#define configUSE_CO_ROUTINES 		0
+#define configMAX_CO_ROUTINE_PRIORITIES ( 2 )
 
 /* Set the following definitions to 1 to include the API function, or zero
 to exclude the API function. */

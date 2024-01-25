@@ -141,81 +141,120 @@ extern void vSetupTimerTest( void );
 
 /*-----------------------------------------------------------*/
 
-static int sum = 0;
-static volatile int flagCalcEnd = 0;
-static volatile int flagUARTused = 0;
+volatile uint8_t flagLPTaskRun = 0;
+volatile uint8_t flagMPTaskRun = 0;
+volatile uint8_t flagHPTaskRun = 0;
 
-static SemaphoreHandle_t xSemCalc;
-static SemaphoreHandle_t xSemUART;
+static void vLPTask( void *pvParameters );
+static void vMPTask( void *pvParameters );
+static void vHPTask( void *pvParameters );
 
-void Task1Function(void * param)
-{
-	volatile int i = 0;
-	while (1)
-	{
-		for (i = 0; i < 10000000; i++)
-			sum++;
-		//printf("1");
-		xSemaphoreGive(xSemCalc);
-		vTaskDelete(NULL);
-	}
-}
-
-void Task2Function(void * param)
-{
-	while (1)
-	{
-		//if (flagCalcEnd)
-		flagCalcEnd = 0;
-		xSemaphoreTake(xSemCalc, portMAX_DELAY);
-		flagCalcEnd = 1;
-		printf("sum = %d\r\n", sum);
-	}
-}
-
-void TaskGenericFunction(void * param)
-{
-	while (1)
-	{
-		xSemaphoreTake(xSemUART, portMAX_DELAY);
-		printf("%s\r\n", (char *)param);
-		xSemaphoreGive(xSemUART);
-		vTaskDelay(1);
-	}
-}
-
+SemaphoreHandle_t xLock;
 
 /*-----------------------------------------------------------*/
 
 int main( void )
 {
-	TaskHandle_t xHandleTask1;
-#ifdef DEBUG
-  	debug();
-#endif
-
 	prvSetupHardware();
 	
-	printf("Hello world!\r\n");
+    xLock = xSemaphoreCreateBinary( );
+	xSemaphoreGive(xLock);
 
-	xSemCalc = xSemaphoreCreateCounting(10, 0);
-	//xSemUART = xSemaphoreCreateBinary();
-	//xSemaphoreGive(xSemUART);
-	
-	xSemUART = xSemaphoreCreateMutex();
+	if( xLock != NULL )
+	{
+		xTaskCreate( vLPTask, "LPTask", 1000, NULL, 1, NULL );
+		xTaskCreate( vMPTask, "MPTask", 1000, NULL, 2, NULL );
+		xTaskCreate( vHPTask, "HPTask", 1000, NULL, 3, NULL );
 
-	xTaskCreate(Task1Function, "Task1", 100, NULL, 1, &xHandleTask1);
-	xTaskCreate(Task2Function, "Task2", 100, NULL, 1, NULL);
+		vTaskStartScheduler();
+	}
+	else
+	{
+		
+	}
 
-	xTaskCreate(TaskGenericFunction, "Task3", 100, "Task 3 is running", 1, NULL);
-	xTaskCreate(TaskGenericFunction, "Task4", 100, "Task 4 is running", 1, NULL);
-
-	/* Start the scheduler. */
-	vTaskStartScheduler();
-
-	/* Will only get here if there was not enough heap space to create the
-	idle task. */
 	return 0;
+}
+static void vLPTask( void *pvParameters )
+{
+	const TickType_t xTicksToWait = pdMS_TO_TICKS( 10UL );	
+	uint32_t i;
+	char c = 'A';
+
+	printf("LPTask start\r\n");
+	
+	for( ;; )
+	{	
+		flagLPTaskRun = 1;
+		flagMPTaskRun = 0;
+		flagHPTaskRun = 0;
+
+		xSemaphoreTake(xLock, portMAX_DELAY);
+		
+		
+		printf("LPTask take the Lock for long time");
+		for (i = 0; i < 500; i++) 
+		{
+			flagLPTaskRun = 1;
+			flagMPTaskRun = 0;
+			flagHPTaskRun = 0;
+			printf("%c", c + i);
+		}
+		printf("\r\n");
+		
+		xSemaphoreGive(xLock);
+		
+		vTaskDelay(xTicksToWait);
+	}
+}
+
+static void vMPTask( void *pvParameters )
+{
+	const TickType_t xTicksToWait = pdMS_TO_TICKS( 30UL );	
+
+	flagLPTaskRun = 0;
+	flagMPTaskRun = 1;
+	flagHPTaskRun = 0;
+
+	printf("MPTask start\r\n");
+	
+	vTaskDelay(xTicksToWait);
+	
+	for( ;; )
+	{	
+		flagLPTaskRun = 0;
+		flagMPTaskRun = 1;
+		flagHPTaskRun = 0;
+	}
+}
+
+static void vHPTask( void *pvParameters )
+{
+	const TickType_t xTicksToWait = pdMS_TO_TICKS( 10UL );	
+
+	flagLPTaskRun = 0;
+	flagMPTaskRun = 0;
+	flagHPTaskRun = 1;
+
+	printf("HPTask start\r\n");
+	
+	vTaskDelay(xTicksToWait);
+	
+	for( ;; )
+	{	
+		flagLPTaskRun = 0;
+		flagMPTaskRun = 0;
+		flagHPTaskRun = 1;
+		printf("HPTask wait for Lock\r\n");
+		
+		xSemaphoreTake(xLock, portMAX_DELAY);
+		
+		flagLPTaskRun = 0;
+		flagMPTaskRun = 0;
+		flagHPTaskRun = 1;
+		
+		xSemaphoreGive(xLock);
+	}
 }
 /*-----------------------------------------------------------*/
 
@@ -279,7 +318,7 @@ static void prvSetupHardware( void )
 	/* Configure HCLK clock as SysTick clock source. */
 	SysTick_CLKSourceConfig( SysTick_CLKSource_HCLK );
 	
-	SerialPortInit();	//Serial Init
+	SerialPortInit();
 }
 /*-----------------------------------------------------------*/
 
