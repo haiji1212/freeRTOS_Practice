@@ -63,7 +63,6 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
-#include "semphr.h"
 
 /* Library includes. */
 #include "stm32f10x_it.h"
@@ -144,11 +143,35 @@ extern void vSetupTimerTest( void );
 static int sum = 0;
 static volatile int flagCalcEnd = 0;
 static volatile int flagUARTused = 0;
-
-static SemaphoreHandle_t xSemCalc;
-static SemaphoreHandle_t xSemUART;
+static QueueHandle_t xQueueCalcHandle;
+static QueueHandle_t xQueueUARTcHandle;
 
 static TaskHandle_t xHandleTask2;
+
+int InitUARTLock(void)
+{	
+	int val;
+	xQueueUARTcHandle = xQueueCreate(1, sizeof(int));
+	if (xQueueUARTcHandle == NULL)
+	{
+		printf("can not create queue\r\n");
+		return -1;
+	}
+	xQueueSend(xQueueUARTcHandle, &val, portMAX_DELAY);
+	return 0;
+}
+
+void GetUARTLock(void)
+{	
+	int val;
+	xQueueReceive(xQueueUARTcHandle, &val, portMAX_DELAY);
+}
+
+void PutUARTLock(void)
+{	
+	int val;
+	xQueueSend(xQueueUARTcHandle, &val, portMAX_DELAY);
+}
 
 
 void Task1Function(void * param)
@@ -159,27 +182,33 @@ void Task1Function(void * param)
 		for (i = 0; i < 10000; i++)
 			sum++;
 		//printf("1");
+		//flagCalcEnd = 1;
+		//vTaskDelete(NULL);
 		for (i = 0; i < 10; i++)
 		{
-			// xSemaphoreGive(xSemCalc);
-			xTaskNotifyGive(xHandleTask2);
+			//xQueueSend(xQueueCalcHandle, &sum, portMAX_DELAY);
+			//xTaskNotify(xHandleTask2, sum, eSetValueWithoutOverwrite);
+			xTaskNotify(xHandleTask2, sum, eSetValueWithOverwrite);
+			sum++;
 		}
 		vTaskDelete(NULL);
+		//sum = 1;
 	}
 }
 
 void Task2Function(void * param)
 {
-	int i = 0;
 	int val;
+	int i = 0;
+	
 	while (1)
 	{
 		//if (flagCalcEnd)
 		flagCalcEnd = 0;
-		//xSemaphoreTake(xSemCalc, portMAX_DELAY);
-		val = ulTaskNotifyTake(pdFALSE, portMAX_DELAY);	//pdTRUE
+		//xQueueReceive(xQueueCalcHandle, &val, portMAX_DELAY);
+		xTaskNotifyWait(0, 0, &val, portMAX_DELAY);
 		flagCalcEnd = 1;
-		printf("sum = %d, NotifyVal = %d, i = %d\r\n", sum, val, i++);
+		printf("sum = %d, i = %d\r\n", val, i++);
 	}
 }
 
@@ -187,13 +216,13 @@ void TaskGenericFunction(void * param)
 {
 	while (1)
 	{
-		xSemaphoreTake(xSemUART, portMAX_DELAY);
+		GetUARTLock();
 		printf("%s\r\n", (char *)param);
-		xSemaphoreGive(xSemUART);
+		   // task 3 is waiting
+		PutUARTLock(); /* task 3 ==> ready, task 4 is running  */
 		vTaskDelay(1);
 	}
 }
-
 
 
 /*-----------------------------------------------------------*/
@@ -209,9 +238,14 @@ int main( void )
 	prvSetupHardware();
 
 	printf("Hello, world!\r\n");
-	xSemCalc = xSemaphoreCreateCounting(10, 0);
-	xSemUART = xSemaphoreCreateBinary();
-	xSemaphoreGive(xSemUART);
+
+	xQueueCalcHandle = xQueueCreate(10, sizeof(int));
+	if (xQueueCalcHandle == NULL)
+	{
+		printf("can not create queue\r\n");
+	}
+
+	InitUARTLock();
 
 	xTaskCreate(Task1Function, "Task1", 100, NULL, 1, &xHandleTask1);
 	xTaskCreate(Task2Function, "Task2", 100, NULL, 1, &xHandleTask2);
