@@ -475,6 +475,11 @@
               <FileType>1</FileType>
               <FilePath>..\..\Source\portable\MemMang\heap_2.c</FilePath>
             </File>
+            <File>
+              <FileName>event_groups.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\Source\event_groups.c</FilePath>
+            </File>
           </Files>
         </Group>
       </Groups>

@@ -63,7 +63,7 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
-#include "semphr.h"
+#include "event_groups.h"
 
 /* Library includes. */
 #include "stm32f10x_it.h"
@@ -142,11 +142,13 @@ extern void vSetupTimerTest( void );
 /*-----------------------------------------------------------*/
 
 static int sum = 0;
+static int dec = 0;
 static volatile int flagCalcEnd = 0;
 static volatile int flagUARTused = 0;
+static QueueHandle_t xQueueCalcHandle;
 
-static SemaphoreHandle_t xSemCalc;
-static SemaphoreHandle_t xSemUART;
+static EventGroupHandle_t xEventGroupCalc;
+
 
 
 void Task1Function(void * param)
@@ -154,67 +156,42 @@ void Task1Function(void * param)
 	volatile int i = 0;
 	while (1)
 	{
-		for (i = 0; i < 10000000; i++)
+		for (i = 0; i < 100000; i++)
 			sum++;
-		//printf("1");
-		xSemaphoreGive(xSemCalc);
-		vTaskDelete(NULL);
+		xQueueSend(xQueueCalcHandle, &sum, 0);
+		
+		xEventGroupSetBits(xEventGroupCalc, (1<<0));
 	}
 }
 
 void Task2Function(void * param)
 {
+	volatile int i = 0;
 	while (1)
 	{
-		//if (flagCalcEnd)
-		flagCalcEnd = 0;
-		xSemaphoreTake(xSemCalc, portMAX_DELAY);
-		flagCalcEnd = 1;
-		printf("sum = %d\r\n", sum);
+		for (i = 0; i < 100000; i++)
+			dec--;
+		xQueueSend(xQueueCalcHandle, &dec, 0);
+	
+		xEventGroupSetBits(xEventGroupCalc, (1<<1));
 	}
 }
 
-void TaskGenericFunction(void * param)
+
+void Task3Function(void * param)
 {
-	int i;
+	int val1, val2;
 	while (1)
 	{
-		xSemaphoreTakeRecursive(xSemUART, portMAX_DELAY);
-
-		printf("%s\r\n", (char *)param);
-		for (i = 0; i < 10; i++)
-		{
-			xSemaphoreTakeRecursive(xSemUART, portMAX_DELAY);
-			printf("%s in loop %d\r\n", (char *)param, i);
-			xSemaphoreGiveRecursive(xSemUART);
-		}
+		xEventGroupWaitBits(xEventGroupCalc, (1<<0)|(1<<1), pdTRUE, pdTRUE, portMAX_DELAY);
+	
+		xQueueReceive(xQueueCalcHandle, &val1, 0);
+		xQueueReceive(xQueueCalcHandle, &val2, 0);
 		
-		xSemaphoreGiveRecursive(xSemUART);
-		vTaskDelay(1);
+		printf("val1 = %d, val2 = %d\r\n", val1, val2);
 	}
 }
 
-void Task5Function(void * param)
-{
-	vTaskDelay(10);
-	while (1)
-	{
-		while (1)
-		{
-			if (xSemaphoreTakeRecursive(xSemUART, 0) != pdTRUE)
-			{
-				xSemaphoreGiveRecursive(xSemUART);			
-			}
-			else
-			{
-				break;
-			}
-		}
-		printf("%s\r\n", (char *)param);
-		xSemaphoreGiveRecursive(xSemUART);
-		vTaskDelay(1);
-	}
-}
 
 
 /*-----------------------------------------------------------*/
@@ -230,20 +207,18 @@ int main( void )
 	prvSetupHardware();
 
 	printf("Hello, world!\r\n");
-	xSemCalc = xSemaphoreCreateCounting(10, 0);
-	//xSemUART = xSemaphoreCreateBinary();
-	//xSemaphoreGive(xSemUART);
-	
-	//xSemUART = xSemaphoreCreateMutex();
-	xSemUART = xSemaphoreCreateRecursiveMutex();
+
+	xEventGroupCalc = xEventGroupCreate();
+
+	xQueueCalcHandle = xQueueCreate(2, sizeof(int));
+	if (xQueueCalcHandle == NULL)
+	{
+		printf("can not create queue\r\n");
+	}
 
 	xTaskCreate(Task1Function, "Task1", 100, NULL, 1, &xHandleTask1);
 	xTaskCreate(Task2Function, "Task2", 100, NULL, 1, NULL);
-
-	xTaskCreate(TaskGenericFunction, "Task3", 100, "Task 3 is running", 1, NULL);
-	xTaskCreate(TaskGenericFunction, "Task4", 100, "Task 4 is running", 1, NULL);
-	xTaskCreate(Task5Function, "Task5", 100, "Task 5 is running", 1, NULL);
-
+	xTaskCreate(Task3Function, "Task3", 100, NULL, 1, NULL);
 	/* Start the scheduler. */
 	vTaskStartScheduler();
 
