@@ -63,7 +63,7 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
-#include "event_groups.h"
+#include "semphr.h"
 
 /* Library includes. */
 #include "stm32f10x_it.h"
@@ -142,13 +142,13 @@ extern void vSetupTimerTest( void );
 /*-----------------------------------------------------------*/
 
 static int sum = 0;
-static int dec = 0;
 static volatile int flagCalcEnd = 0;
 static volatile int flagUARTused = 0;
-static QueueHandle_t xQueueCalcHandle;
 
-static EventGroupHandle_t xEventGroupCalc;
+static SemaphoreHandle_t xSemCalc;
+static SemaphoreHandle_t xSemUART;
 
+static TaskHandle_t xHandleTask2;
 
 
 void Task1Function(void * param)
@@ -156,39 +156,41 @@ void Task1Function(void * param)
 	volatile int i = 0;
 	while (1)
 	{
-		for (i = 0; i < 100000; i++)
+		for (i = 0; i < 10000; i++)
 			sum++;
-		xQueueSend(xQueueCalcHandle, &sum, 0);
-		
-		xEventGroupSetBits(xEventGroupCalc, (1<<0));
+		//printf("1");
+		for (i = 0; i < 10; i++)
+		{
+			// xSemaphoreGive(xSemCalc);
+			xTaskNotifyGive(xHandleTask2);
+		}
+		vTaskDelete(NULL);
 	}
 }
 
 void Task2Function(void * param)
 {
-	volatile int i = 0;
+	int i = 0;
+	int val;
 	while (1)
 	{
-		for (i = 0; i < 100000; i++)
-			dec--;
-		xQueueSend(xQueueCalcHandle, &dec, 0);
-	
-		xEventGroupSetBits(xEventGroupCalc, (1<<1));
+		//if (flagCalcEnd)
+		flagCalcEnd = 0;
+		//xSemaphoreTake(xSemCalc, portMAX_DELAY);
+		val = ulTaskNotifyTake(pdFALSE, portMAX_DELAY);	//pdTRUE
+		flagCalcEnd = 1;
+		printf("sum = %d, NotifyVal = %d, i = %d\r\n", sum, val, i++);
 	}
 }
 
-
-void Task3Function(void * param)
+void TaskGenericFunction(void * param)
 {
-	int val1, val2;
 	while (1)
 	{
-		xEventGroupWaitBits(xEventGroupCalc, (1<<0)|(1<<1), pdTRUE, pdTRUE, portMAX_DELAY);
-	
-		xQueueReceive(xQueueCalcHandle, &val1, 0);
-		xQueueReceive(xQueueCalcHandle, &val2, 0);
-		
-		printf("val1 = %d, val2 = %d\r\n", val1, val2);
+		xSemaphoreTake(xSemUART, portMAX_DELAY);
+		printf("%s\r\n", (char *)param);
+		xSemaphoreGive(xSemUART);
+		vTaskDelay(1);
 	}
 }
 
@@ -207,18 +209,16 @@ int main( void )
 	prvSetupHardware();
 
 	printf("Hello, world!\r\n");
-
-	xEventGroupCalc = xEventGroupCreate();
-
-	xQueueCalcHandle = xQueueCreate(2, sizeof(int));
-	if (xQueueCalcHandle == NULL)
-	{
-		printf("can not create queue\r\n");
-	}
+	xSemCalc = xSemaphoreCreateCounting(10, 0);
+	xSemUART = xSemaphoreCreateBinary();
+	xSemaphoreGive(xSemUART);
 
 	xTaskCreate(Task1Function, "Task1", 100, NULL, 1, &xHandleTask1);
-	xTaskCreate(Task2Function, "Task2", 100, NULL, 1, NULL);
-	xTaskCreate(Task3Function, "Task3", 100, NULL, 1, NULL);
+	xTaskCreate(Task2Function, "Task2", 100, NULL, 1, &xHandleTask2);
+
+	//xTaskCreate(TaskGenericFunction, "Task3", 100, "Task 3 is running", 1, NULL);
+	//xTaskCreate(TaskGenericFunction, "Task4", 100, "Task 4 is running", 1, NULL);
+
 	/* Start the scheduler. */
 	vTaskStartScheduler();
 
