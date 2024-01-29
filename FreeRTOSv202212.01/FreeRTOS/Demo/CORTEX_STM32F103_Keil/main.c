@@ -141,29 +141,18 @@ extern void vSetupTimerTest( void );
 
 /*-----------------------------------------------------------*/
 
-static int sum = 0;
-static int dec = 0;
-static volatile int flagCalcEnd = 0;
-static volatile int flagUARTused = 0;
-static QueueHandle_t xQueueCalcHandle;
-
-static EventGroupHandle_t xEventGroupCalc;
-static TaskHandle_t xHandleTask3;
-
-
+static TimerHandle_t xMyTimerHandle;
+static int flagTimer = 0;
 
 void Task1Function(void * param)
 {
 	volatile int i = 0;
+
+	xTimerStart(xMyTimerHandle, 0);
+	
 	while (1)
 	{
-		for (i = 0; i < 100000; i++)
-			sum++;
-		xQueueSend(xQueueCalcHandle, &sum, 0);
-		//xEventGroupSetBits(xEventGroupCalc, (1<<0));
-		xTaskNotify(xHandleTask3, (1<<0), eSetBits);
-		printf("Task 1 set bit 0\r\n");
-		vTaskDelete(NULL);
+		printf("Task1Function ...\r\n");
 	}
 }
 
@@ -172,39 +161,15 @@ void Task2Function(void * param)
 	volatile int i = 0;
 	while (1)
 	{
-		for (i = 0; i < 1000000; i++)
-			dec--;
-		xQueueSend(xQueueCalcHandle, &dec, 0);
-		//xEventGroupSetBits(xEventGroupCalc, (1<<1));
-		xTaskNotify(xHandleTask3, (1<<1), eSetBits);
-		printf("Task 2 set bit 1\r\n");
-		vTaskDelete(NULL);
 	}
 }
 
 
-void Task3Function(void * param)
+void MyTimerCallbackFunction( TimerHandle_t xTimer )
 {
-	int val1, val2;
-	int bits;
-	while (1)
-	{
-		//xEventGroupWaitBits(xEventGroupCalc, (1<<0)|(1<<1), pdTRUE, pdTRUE, portMAX_DELAY);
-		xTaskNotifyWait(0, 0, &bits, portMAX_DELAY);
-		if ((bits & 0x3) == 0x3)
-		{
-			vTaskDelay(20);
-			xQueueReceive(xQueueCalcHandle, &val1, 0);
-			xQueueReceive(xQueueCalcHandle, &val2, 0);
-			
-			printf("val1 = %d, val2 = %d\r\n", val1, val2);
-		}
-		else
-		{
-			vTaskDelay(20);
-			printf("have not get all bits, get only 0x%x\r\n", bits);
-		}
-	}
+	static int cnt = 0;
+	flagTimer = !flagTimer;
+	printf("MyTimerCallbackFunction_t cnt = %d\r\n", cnt++);
 }
 
 
@@ -222,18 +187,11 @@ int main( void )
 
 	printf("Hello, world!\r\n");
 
-	xEventGroupCalc = xEventGroupCreate();
+	xMyTimerHandle = xTimerCreate("mytimer", 100, pdTRUE, NULL, MyTimerCallbackFunction);
 
-	xQueueCalcHandle = xQueueCreate(2, sizeof(int));
-	if (xQueueCalcHandle == NULL)
-	{
-		printf("can not create queue\r\n");
-	}
-
-
-	xTaskCreate(Task1Function, "Task1", 100, NULL, 1, &xHandleTask1);
-	xTaskCreate(Task2Function, "Task2", 100, NULL, 1, NULL);
-	xTaskCreate(Task3Function, "Task3", 100, NULL, 1, &xHandleTask3);
+	xTaskCreate(Task1Function, "Task1", 100, NULL, (configMAX_PRIORITIES-1), &xHandleTask1);
+	//xTaskCreate(Task2Function, "Task2", 100, NULL, 1, NULL);
+	
 	/* Start the scheduler. */
 	vTaskStartScheduler();
 
