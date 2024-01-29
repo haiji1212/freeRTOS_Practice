@@ -215,11 +215,16 @@ void KeyIntInit(void)
 void EXTI0_IRQHandler(void)
 {
 	static int cnt = 0;
+	BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
 	if(EXTI_GetITStatus(EXTI_Line0) != RESET)
 	{
 		printf("EXTI0_IRQHandler cnt = %d\r\n", cnt++);
-		xTimerReset(xMyTimerHandle, 0); /* Tcur + 2000 */
-		EXTI_ClearITPendingBit(EXTI_Line0);    
+		xTimerResetFromISR(xMyTimerHandle, &xHigherPriorityTaskWoken); /* Tcur + 2000 */
+		
+		portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+		
+		EXTI_ClearITPendingBit(EXTI_Line0);
 	}     
 }
 
