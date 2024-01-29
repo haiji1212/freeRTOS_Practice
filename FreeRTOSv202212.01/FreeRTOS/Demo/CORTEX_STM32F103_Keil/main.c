@@ -148,11 +148,11 @@ void Task1Function(void * param)
 {
 	volatile int i = 0;
 
-	xTimerStart(xMyTimerHandle, 0);
+	//xTimerStart(xMyTimerHandle, 0);
 	
 	while (1)
 	{
-		printf("Task1Function ...\r\n");
+		//printf("Task1Function ...\r\n");
 	}
 }
 
@@ -169,11 +169,59 @@ void MyTimerCallbackFunction( TimerHandle_t xTimer )
 {
 	static int cnt = 0;
 	flagTimer = !flagTimer;
-	printf("MyTimerCallbackFunction_t cnt = %d\r\n", cnt++);
+	printf("Get GPIO Key cnt = %d\r\n", cnt++);
 }
 
 
 /*-----------------------------------------------------------*/
+
+void KeyInit(void)
+{
+	GPIO_InitTypeDef GPIO_InitStructure;
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+	GPIO_InitStructure.GPIO_Pin  = GPIO_Pin_0;   
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU;        
+	GPIO_Init(GPIOA, &GPIO_InitStructure);             
+}
+
+void KeyIntInit(void)
+{
+	EXTI_InitTypeDef EXTI_InitStructure;
+	NVIC_InitTypeDef NVIC_InitStructure;
+
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE); 
+
+	GPIO_EXTILineConfig(GPIO_PortSourceGPIOA, GPIO_PinSource0);
+
+
+	EXTI_InitStructure.EXTI_Line=EXTI_Line0; 
+	EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;            
+	EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Rising_Falling; 
+
+	EXTI_InitStructure.EXTI_LineCmd = ENABLE;
+
+	EXTI_Init(&EXTI_InitStructure);
+
+
+	
+	NVIC_InitStructure.NVIC_IRQChannel = EXTI0_IRQChannel;   
+	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;        
+	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;            	
+	NVIC_Init(&NVIC_InitStructure); 
+
+}
+
+void EXTI0_IRQHandler(void)
+{
+	static int cnt = 0;
+	if(EXTI_GetITStatus(EXTI_Line0) != RESET)
+	{
+		printf("EXTI0_IRQHandler cnt = %d\r\n", cnt++);
+		xTimerReset(xMyTimerHandle, 0); /* Tcur + 2000 */
+		EXTI_ClearITPendingBit(EXTI_Line0);    
+	}     
+}
 
 int main( void )
 {
@@ -187,9 +235,12 @@ int main( void )
 
 	printf("Hello, world!\r\n");
 
-	xMyTimerHandle = xTimerCreate("mytimer", 100, pdTRUE, NULL, MyTimerCallbackFunction);
+	KeyInit();
+	KeyIntInit();
 
-	xTaskCreate(Task1Function, "Task1", 100, NULL, (configMAX_PRIORITIES-1), &xHandleTask1);
+	xMyTimerHandle = xTimerCreate("mytimer", 2000, pdFALSE, NULL, MyTimerCallbackFunction);
+
+	xTaskCreate(Task1Function, "Task1", 100, NULL, 1, &xHandleTask1);
 	//xTaskCreate(Task2Function, "Task2", 100, NULL, 1, NULL);
 	
 	/* Start the scheduler. */
